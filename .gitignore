@@ -1,0 +1,23 @@
+﻿# Unreal generated files
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+
+# IDE generated files
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# Build and crash artifacts
+*.log
+*.tmp
+*.pdb
+
+# User-local Unreal files
+*.user
+*.sln.DotSettings.user
