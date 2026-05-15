@@ -7,6 +7,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "EnhancedInputComponent.h"
+#include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -17,6 +18,8 @@
 
 ARPGPlayerCharacter::ARPGPlayerCharacter()
 {
+	PrimaryActorTick.bCanEverTick = true;
+
 	GetCapsuleComponent()->InitCapsuleSize(42.0f, 96.0f);
 
 	bUseControllerRotationPitch = false;
@@ -68,6 +71,13 @@ ARPGPlayerCharacter::ARPGPlayerCharacter()
 	static ConstructorHelpers::FObjectFinder<UAnimSequenceBase> DashAnimationAsset(TEXT("/Game/Characters/Mannequins/Anims/Unarmed/Jump/MM_Dash.MM_Dash"));
 	DashAnimation = DashAnimationAsset.Object;
 	DashFallbackAnimation = DashAnimationAsset.Object;
+}
+
+void ARPGPlayerCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	UpdateMovementDebugText();
 }
 
 void ARPGPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -163,10 +173,14 @@ void ARPGPlayerCharacter::StartDash()
 {
 	if (!bCanDash)
 	{
+		LastDashEvent = TEXT("Blocked: Cooldown");
 		return;
 	}
 
 	bCanDash = false;
+	bDashMovementActive = true;
+	LastDashStartTime = GetWorld() != nullptr ? GetWorld()->GetTimeSeconds() : 0.0f;
+	LastDashEvent = TEXT("Started");
 
 	FVector DashDirection = GetLastMovementInputVector();
 	if (!bDashUseInputDirection || DashDirection.IsNearlyZero())
@@ -178,6 +192,7 @@ void ARPGPlayerCharacter::StartDash()
 
 	DashDirection.Z = 0.0f;
 	DashDirection.Normalize();
+	LastDashDirection = DashDirection;
 
 	UAnimSequenceBase* AnimationToPlay = DashAnimation;
 	const bool bUseRootMotionDash = bDashUseRootMotionAnimation && AnimationToPlay != nullptr;
@@ -194,7 +209,7 @@ void ARPGPlayerCharacter::StartDash()
 
 		if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 		{
-			// RootMotion 模式下不再叠加当前移动速度，让动画本身决定这次闪避的位移曲线。
+			// 先清掉普通移动速度，再叠加一次短促冲量，确保原型阶段的闪避有可见位移。
 			Movement->StopMovementImmediately();
 		}
 	}
@@ -220,28 +235,19 @@ void ARPGPlayerCharacter::StartDash()
 	}
 
 	TWeakObjectPtr<ARPGPlayerCharacter> WeakThis(this);
-	if (!bUseRootMotionDash)
+	if (bDashApplyMovementImpulse)
 	{
 		LaunchCharacter(DashDirection * DashStrength, true, false);
-
-		FTimerHandle DashStopTimerHandle;
-		GetWorldTimerManager().SetTimer(DashStopTimerHandle, [WeakThis]()
-		{
-			if (!WeakThis.IsValid())
-			{
-				return;
-			}
-
-			UCharacterMovementComponent* Movement = WeakThis->GetCharacterMovement();
-			if (Movement == nullptr)
-			{
-				return;
-			}
-
-			const FVector CurrentVelocity = Movement->Velocity;
-			Movement->Velocity = FVector(0.0f, 0.0f, CurrentVelocity.Z);
-		}, DashDuration, false);
 	}
+
+	FTimerHandle DashStopTimerHandle;
+	GetWorldTimerManager().SetTimer(DashStopTimerHandle, [WeakThis]()
+	{
+		if (WeakThis.IsValid())
+		{
+			WeakThis->StopDashMovement();
+		}
+	}, DashDuration, false);
 
 	FTimerHandle DashCooldownTimerHandle;
 	GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, [WeakThis]()
@@ -249,6 +255,10 @@ void ARPGPlayerCharacter::StartDash()
 		if (WeakThis.IsValid())
 		{
 			WeakThis->bCanDash = true;
+			if (!WeakThis->bDashMovementActive)
+			{
+				WeakThis->LastDashEvent = TEXT("Ready");
+			}
 		}
 	}, DashCooldown, false);
 }
@@ -256,6 +266,22 @@ void ARPGPlayerCharacter::StartDash()
 void ARPGPlayerCharacter::StopDash()
 {
 	// 闪避是一次性动作，松开按键不再控制速度。
+}
+
+void ARPGPlayerCharacter::StopDashMovement()
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (Movement == nullptr)
+	{
+		bDashMovementActive = false;
+		LastDashEvent = TEXT("Stopped: No MovementComponent");
+		return;
+	}
+
+	const FVector CurrentVelocity = Movement->Velocity;
+	Movement->Velocity = FVector(0.0f, 0.0f, CurrentVelocity.Z);
+	bDashMovementActive = false;
+	LastDashEvent = bCanDash ? TEXT("Ready") : TEXT("Cooling Down");
 }
 
 bool ARPGPlayerCharacter::IsLikelyRootMotionDashAnimation(const UAnimSequenceBase* Animation) const
@@ -267,6 +293,76 @@ bool ARPGPlayerCharacter::IsLikelyRootMotionDashAnimation(const UAnimSequenceBas
 
 	const FString AnimationPath = Animation->GetPathName().ToLower();
 	return AnimationPath.Contains(TEXT("/rootmotion/")) || AnimationPath.Contains(TEXT("/root_motion/"));
+}
+
+void ARPGPlayerCharacter::UpdateMovementDebugText() const
+{
+	if (!bShowMovementDebug || GEngine == nullptr || !IsLocallyControlled())
+	{
+		return;
+	}
+
+	const FVector Velocity = GetVelocity();
+	const float Speed2D = FVector(Velocity.X, Velocity.Y, 0.0f).Size();
+	const float DashAge = LastDashStartTime >= 0.0f && GetWorld() != nullptr
+		? GetWorld()->GetTimeSeconds() - LastDashStartTime
+		: -1.0f;
+
+	const FString DashAgeText = DashAge >= 0.0f ? FString::Printf(TEXT("%.2fs ago"), DashAge) : FString(TEXT("Never"));
+	const FString DebugText = FString::Printf(
+		TEXT("RPG Debug\nSpeed XY: %.0f | Velocity: X %.0f Y %.0f Z %.0f\nMovement: %s\nDash: %s | Last Input: %s | Event: %s\nDash Mode: %s | Impulse: %s | Anim: %s"),
+		Speed2D,
+		Velocity.X,
+		Velocity.Y,
+		Velocity.Z,
+		*GetMovementModeDebugText(),
+		*GetDashStateDebugText(),
+		*DashAgeText,
+		*LastDashEvent,
+		bDashUseRootMotionAnimation ? TEXT("RootMotion Animation") : TEXT("Launch/Fallback Animation"),
+		bDashApplyMovementImpulse ? TEXT("On") : TEXT("Off"),
+		*GetNameSafe(DashAnimation));
+
+	GEngine->AddOnScreenDebugMessage(260514, 0.0f, FColor::Cyan, DebugText, false);
+}
+
+FString ARPGPlayerCharacter::GetMovementModeDebugText() const
+{
+	const UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (Movement == nullptr)
+	{
+		return TEXT("No MovementComponent");
+	}
+
+	switch (Movement->MovementMode)
+	{
+	case MOVE_None:
+		return TEXT("None");
+	case MOVE_Walking:
+		return TEXT("Walking");
+	case MOVE_NavWalking:
+		return TEXT("NavWalking");
+	case MOVE_Falling:
+		return TEXT("Falling");
+	case MOVE_Swimming:
+		return TEXT("Swimming");
+	case MOVE_Flying:
+		return TEXT("Flying");
+	case MOVE_Custom:
+		return FString::Printf(TEXT("Custom(%d)"), Movement->CustomMovementMode);
+	default:
+		return TEXT("Unknown");
+	}
+}
+
+FString ARPGPlayerCharacter::GetDashStateDebugText() const
+{
+	if (bDashMovementActive)
+	{
+		return TEXT("Dashing");
+	}
+
+	return bCanDash ? TEXT("Ready") : TEXT("Cooldown");
 }
 
 void ARPGPlayerCharacter::Interact()

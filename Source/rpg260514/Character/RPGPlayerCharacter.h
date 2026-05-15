@@ -21,6 +21,7 @@ public:
 	ARPGPlayerCharacter();
 
 protected:
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 private:
@@ -29,9 +30,13 @@ private:
 	void Zoom(const FInputActionValue& Value);
 	void StartDash();
 	void StopDash();
+	void StopDashMovement();
 	void Interact();
 	void PrimaryAction();
 	bool IsLikelyRootMotionDashAnimation(const UAnimSequenceBase* Animation) const;
+	void UpdateMovementDebugText() const;
+	FString GetMovementModeDebugText() const;
+	FString GetDashStateDebugText() const;
 
 	// Enhanced Input 的输入资产由蓝图或编辑器资产指定，代码只依赖语义，不直接写死按键。
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
@@ -70,9 +75,13 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Dash", meta = (AllowPrivateAccess = "true"))
 	bool bDashUseInputDirection = true;
 
-	// 勾选后，闪避位移完全交给 RootMotion 动画。此时不会再叠加 LaunchCharacter，适合 Roll 这类自带位移的动画。
+	// 勾选后优先播放 RootMotion 闪避动画。位移仍会叠加一个短促冲量，保证动画/Slot 出问题时玩家也能看到闪避发生。
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Dash", meta = (AllowPrivateAccess = "true"))
 	bool bDashUseRootMotionAnimation = false;
+
+	// 原型调试阶段保持开启：用代码给一次明确位移，避免只依赖 RootMotion 动画导致“按了但没变化”。
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Dash", meta = (AllowPrivateAccess = "true"))
+	bool bDashApplyMovementImpulse = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Dash", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAnimSequenceBase> DashAnimation;
@@ -95,6 +104,13 @@ private:
 	FName DashAnimationSlotName = TEXT("DefaultSlot");
 
 	bool bCanDash = true;
+	bool bDashMovementActive = false;
+	float LastDashStartTime = -1.0f;
+	FVector LastDashDirection = FVector::ZeroVector;
+	FString LastDashEvent = TEXT("Never");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug", meta = (AllowPrivateAccess = "true"))
+	bool bShowMovementDebug = true;
 
 	// 第三人称镜头参数先集中在角色上，方便原型阶段在 BP_PlayerCharacter 中调试。
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Camera|Tuning", meta = (AllowPrivateAccess = "true"))

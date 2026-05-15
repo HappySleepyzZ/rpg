@@ -22,6 +22,8 @@ protected:
 
 private:
 	UInputMappingContext* CreateRuntimeExplorationMappingContext();
+	UInputMappingContext* CreateRuntimeDashMappingContext();
+	bool HasActionKeyMapping(const UInputMappingContext* MappingContext, const UInputAction* Action, FKey Key) const;
 
 	// 探索输入上下文：移动、视角、跳跃、交互、基础行动。
 	// 后续进入战斗时可以叠加 CombatMappingContext，而不是改动角色输入代码。
