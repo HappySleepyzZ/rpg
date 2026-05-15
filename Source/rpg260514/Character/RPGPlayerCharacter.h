@@ -8,6 +8,7 @@
 
 class UCameraComponent;
 class UInputAction;
+class UInteractionDetectorComponent;
 class UAnimSequenceBase;
 class USpringArmComponent;
 struct FInputActionValue;
@@ -137,7 +138,11 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> FollowCamera;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInteractionDetectorComponent> InteractionDetector;
+
 public:
 	FORCEINLINE USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	FORCEINLINE UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+	FORCEINLINE UInteractionDetectorComponent* GetInteractionDetector() const { return InteractionDetector; }
 };

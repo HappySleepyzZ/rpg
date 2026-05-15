@@ -13,6 +13,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
+#include "Interaction/InteractionDetectorComponent.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -44,6 +45,9 @@ ARPGPlayerCharacter::ARPGPlayerCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
+
+	InteractionDetector = CreateDefaultSubobject<UInteractionDetectorComponent>(TEXT("InteractionDetector"));
+	InteractionDetector->SetupAttachment(RootComponent);
 
 	// 默认使用项目内的 Enhanced Input 资产。字段仍然暴露给蓝图，后续可以按角色类型覆盖。
 	static ConstructorHelpers::FObjectFinder<UInputAction> MoveActionAsset(TEXT("/Game/Input/Actions/IA_Move.IA_Move"));
@@ -367,7 +371,10 @@ FString ARPGPlayerCharacter::GetDashStateDebugText() const
 
 void ARPGPlayerCharacter::Interact()
 {
-	// 原型 001 的交互入口。后续只负责发起交互查询，不在角色里写具体 NPC/物品逻辑。
+	if (InteractionDetector != nullptr)
+	{
+		InteractionDetector->TryInteract();
+	}
 }
 
 void ARPGPlayerCharacter::PrimaryAction()

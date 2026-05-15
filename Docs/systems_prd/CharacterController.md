@@ -76,8 +76,9 @@ IA_Sprint        LeftShift
 - `IA_Sprint` 文件名暂时沿用旧命名，但玩法语义已经是 Dash / Dodge。
 - 后续可以在编辑器里重命名为 `IA_Dash` 或 `IA_Dodge`，但需要同步修改 C++ 和输入脚本。
 - 角色代码只绑定 InputAction，不直接写死按键。
-- 按键映射优先来自 `IMC_Exploration`。
-- 如果 `IMC_Exploration` 缺少 `LeftShift -> Dash`，`RPGPlayerController` 会额外创建运行时 Dash 兜底映射。
+- 原型阶段默认启用 `bForceRuntimeExplorationMapping`，运行时生成完整探索映射。
+- `IMC_Exploration` 暂时保留为编辑器可视化和后续平台差异化入口。
+- Play 开始时 `RPGPlayerController` 会进入 `GameOnly` 输入模式，并隐藏鼠标光标，避免鼠标被 UI/光标状态截走。
 
 ## 5. 移动设计
 
@@ -360,7 +361,7 @@ Cutscene     演出
 [x] Shift 闪避
 [x] 闪避速度和状态 Debug
 [x] Enhanced Input 输入链路
-[ ] Play 模式下完整手感验收
+[x] Play 模式下基础移动、镜头和 Shift 闪避可用
 [ ] Debug 显示快捷开关
 [ ] 白盒地图中验证坡道、障碍、转角和镜头碰撞
 ```
@@ -372,4 +373,4 @@ Cutscene     演出
 3. 决定闪避最终使用 RootMotion 还是 In-Place + 代码位移。
 4. 增加交互组件，让 `Interact()` 不只是占位。
 5. 增加 CombatComponent，让 `PrimaryAction()` 转发基础攻击。
-
+6. 在资产层正式把 `IA_Sprint` 重命名为 `IA_Dash` 或 `IA_Dodge`，同步更新 C++、脚本和蓝图引用。

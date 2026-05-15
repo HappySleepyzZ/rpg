@@ -5,6 +5,7 @@
 做一个能实际玩通的小型白盒原型，验证最基础的 RPG 循环。
 
 这一版不验证具体世界观包装，不验证主题特色，也不追求正式美术表现。
+当前可玩测试场景使用 UE 的 OpenWorld/Untitled 模板作为底板，统一保存为 `/Game/Maps/Prototype001`。
 
 1. 玩家在一个第三人称小地图中探索。
 2. 玩家有一个跟随队友。
@@ -19,8 +20,17 @@
 - 核心重点：探索和剧情优先，不以高难动作操作为第一目标。
 - 战斗方向：第一版先做半即时原型，但战斗循环必须可替换，后续可以改成回合制。
 - 世界观：待定
-- 美术：先白盒。渲染方案、美术风格和正式资源后置。
+- 美术：先用 OpenWorld/Untitled 模板提供可读的测试光照和地形；正式美术、美术风格和正式资源后置。
 - 队伍：第一版只做主角 + 1 个 AI 队友。
+
+## 当前地图实现
+
+- 唯一默认地图：`/Game/Maps/Prototype001`。
+- 地图来源：UE 5.7 引擎模板 `Engine/Content/Maps/Templates/OpenWorld.umap`，等价于编辑器中新建的 Untitled Open World 场景。
+- 不再维护单独的交互测试地图，后续测试物都放进 `Prototype001`。
+- 一次性交互测试物已放在玩家起点附近，实例标签为 `Test One Shot Interactable`。
+- 该测试物是 World Partition 外部 Actor，保存于 `Content/__ExternalActors__/Maps/Prototype001/...`；脚本会把它设为非空间加载，避免测试时被分区加载隐藏。
+- 直接使用 `Saved/Autosaves/Temp/Untitled_1_Auto1.umap` 会丢失 OpenWorld 模板的外部地形/灯光 Actor，因此地图重建脚本使用原始 OpenWorld 模板作为可靠来源。
 
 ## 战斗原则
 
@@ -61,19 +71,24 @@ RPG 数值不要写死在角色逻辑里。
 [x] RPG 基础目录结构已创建
 [x] 项目文档已创建
 [x] 项目可以用 UE 5.7 正常编译
-[ ] 项目可以用 UE 5.7 正常打开并 Play
+[x] 项目可以用 UE 5.7 正常打开并 Play
 [x] C++ 输入绑定已统一为 Enhanced Input
 [x] Enhanced Input 输入资产已创建并绑定
 [x] 鼠标视角输入已接入运行时 Enhanced Input 映射
 [x] Shift 闪避/突进输入已接入
 [x] 闪避/突进参数已暴露给 BP_PlayerCharacter 调试
 [x] 闪避/突进已接入免费 Dash 动画
+[x] 闪避/突进已加入屏幕速度和状态 Debug
 [x] 已导入 UE 免费占位资源
 [x] 玩家蓝图已创建并接入免费人形角色资源
 [x] 玩家移动动画已接入官方 ABP
-[ ] 有白盒测试地图
+[~] 有最小可打开测试地图，尚未完成白盒探索关卡
 [x] 玩家角色可以第三人称移动
-[~] 探索镜头基本可用
+[x] 探索镜头基本可用
+[x] 通用交互接口存在
+[x] 玩家靠近可交互物时可以显示提示
+[x] 玩家按 E 可以调用当前交互目标
+[x] Prototype001 中已放置一次性交互测试物
 [ ] 队友 Actor 可以跟随玩家
 [ ] 属性组件支持 HP 和 MP
 [ ] 战斗组件可以执行基础行动

@@ -22,7 +22,6 @@ protected:
 
 private:
 	UInputMappingContext* CreateRuntimeExplorationMappingContext();
-	UInputMappingContext* CreateRuntimeDashMappingContext();
 	bool HasActionKeyMapping(const UInputMappingContext* MappingContext, const UInputAction* Action, FKey Key) const;
 
 	// 探索输入上下文：移动、视角、跳跃、交互、基础行动。
@@ -36,6 +35,10 @@ private:
 	// 只在资产 IMC 缺失时启用运行时兜底映射，避免同一按键同时来自两个事实来源。
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	bool bUseRuntimeMappingFallback = true;
+
+	// 原型阶段优先使用代码生成的完整探索映射，避免 IMC 资产里按键或 Modifier 不完整导致输入完全没反应。
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	bool bForceRuntimeExplorationMapping = true;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> MoveAction;

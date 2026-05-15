@@ -51,6 +51,13 @@ void ARPGPlayerController::BeginPlay()
 		return;
 	}
 
+	bShowMouseCursor = false;
+	bEnableClickEvents = false;
+	bEnableMouseOverEvents = false;
+	SetInputMode(FInputModeGameOnly());
+	SetIgnoreLookInput(false);
+	SetIgnoreMoveInput(false);
+
 	UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
 	if (InputSubsystem == nullptr)
 	{
@@ -58,16 +65,27 @@ void ARPGPlayerController::BeginPlay()
 		return;
 	}
 
+	if (bForceRuntimeExplorationMapping)
+	{
+		if (UInputMappingContext* RuntimeExplorationMappingContext = CreateRuntimeExplorationMappingContext())
+		{
+			InputSubsystem->AddMappingContext(RuntimeExplorationMappingContext, ExplorationMappingPriority);
+			UE_LOG(LogTemp, Display, TEXT("RPGPlayerController 使用运行时探索输入映射，确保 WASD、鼠标视角、滚轮和 Shift 闪避可用。"));
+		}
+
+		return;
+	}
+
 	if (ExplorationMappingContext != nullptr)
 	{
 		InputSubsystem->AddMappingContext(ExplorationMappingContext, ExplorationMappingPriority);
 
-		if (!HasActionKeyMapping(ExplorationMappingContext, DashAction, EKeys::LeftShift))
+		if (!HasActionKeyMapping(ExplorationMappingContext, DashAction, EKeys::LeftShift) || !HasActionKeyMapping(ExplorationMappingContext, LookAction, EKeys::MouseX) || !HasActionKeyMapping(ExplorationMappingContext, LookAction, EKeys::MouseY) || !HasActionKeyMapping(ExplorationMappingContext, ZoomAction, EKeys::MouseWheelAxis))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("IMC_Exploration 中没有 LeftShift -> Dash 映射，已添加运行时 Dash 兜底映射。"));
-			if (UInputMappingContext* RuntimeDashMappingContext = CreateRuntimeDashMappingContext())
+			UE_LOG(LogTemp, Warning, TEXT("IMC_Exploration 缺少关键探索映射，已添加完整运行时探索输入兜底。"));
+			if (UInputMappingContext* RuntimeExplorationMappingContext = CreateRuntimeExplorationMappingContext())
 			{
-				InputSubsystem->AddMappingContext(RuntimeDashMappingContext, ExplorationMappingPriority + 1);
+				InputSubsystem->AddMappingContext(RuntimeExplorationMappingContext, ExplorationMappingPriority + 1);
 			}
 		}
 
@@ -146,19 +164,6 @@ UInputMappingContext* ARPGPlayerController::CreateRuntimeExplorationMappingConte
 	RuntimeContext->MapKey(DashAction, EKeys::LeftShift);
 	RuntimeContext->MapKey(ZoomAction, EKeys::MouseWheelAxis);
 
-	return RuntimeContext;
-}
-
-UInputMappingContext* ARPGPlayerController::CreateRuntimeDashMappingContext()
-{
-	if (DashAction == nullptr)
-	{
-		UE_LOG(LogTemp, Error, TEXT("创建运行时 Dash 映射失败：DashAction 未设置。"));
-		return nullptr;
-	}
-
-	UInputMappingContext* RuntimeContext = NewObject<UInputMappingContext>(this, TEXT("RuntimeDashMappingContext"));
-	RuntimeContext->MapKey(DashAction, EKeys::LeftShift);
 	return RuntimeContext;
 }
 

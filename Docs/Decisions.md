@@ -54,7 +54,14 @@ HP、MP、ATK（攻击）、DEF（防御）、冷却、距离、奖励、任务�
 - `IA_Sprint`
 - `IMC_Exploration`
 
-注意：UE Python 在当前 5.7 环境下没有稳定写入 `IMC_Exploration` 的默认映射数组。为了保证项目开箱可玩，`ARPGPlayerController` 会在运行时创建一份默认探索 MappingContext，包含 WASD、鼠标视角、跳跃、交互、基础行动和 Shift 闪避/突进。`IMC_Exploration` 后续仍可作为编辑器可视化和平台差异化扩展入口。
+当前实现已收敛为：
+
+- 原型阶段默认启用 `bForceRuntimeExplorationMapping`，优先使用代码生成的完整探索 MappingContext。
+- 运行时映射包含 WASD、鼠标视角、手柄视角、滚轮缩放、跳跃、交互、基础行动和 Shift 闪避。
+- `IMC_Exploration` 暂时保留为编辑器可视化和后续平台差异化入口，但不作为当前原型的唯一输入事实来源。
+- 如果后续关闭 `bForceRuntimeExplorationMapping`，`IMC_Exploration` 必须至少包含：`IA_Move` 的 WASD / Gamepad Left2D，`IA_Look` 的 MouseX / MouseY / Gamepad Right2D，`IA_Zoom` 的 MouseWheelAxis，`IA_Jump` 的 Space / Gamepad Bottom，`IA_Interact` 的 E，`IA_PrimaryAction` 的 LeftMouseButton，`IA_Sprint` 的 LeftShift。
+
+这样可以避免 `IMC_Exploration` 资产里的按键或 Modifier 配置不完整时，出现“按键没反应”或“鼠标不能转镜头”的问题。
 
 ## D010：手感参数暴露到蓝图
 
@@ -67,6 +74,7 @@ HP、MP、ATK（攻击）、DEF（防御）、冷却、距离、奖励、任务�
 - `DashCooldown`
 - `bDashUseInputDirection`
 - `bDashUseRootMotionAnimation`
+- `bDashApplyMovementImpulse`
 - `DashAnimation`
 - `DashFallbackAnimation`
 - `DashAnimationBlendIn`
@@ -78,7 +86,9 @@ HP、MP、ATK（攻击）、DEF（防御）、冷却、距离、奖励、任务�
 
 默认闪避的实际位移由 `LaunchCharacter` 控制，所以自动选择脚本默认避开 `/RootMotion/` 动画。若蓝图里误填了 RootMotion 闪避动画，运行时会改播 `DashFallbackAnimation`，避免 Mesh 相对胶囊跑到屏幕边缘后在动画结束时回弹。
 
-如果要使用 `A_Roll_IdleFwd` 这类自带位移的 Roll 动画，可以在 `BP_PlayerCharacter` 中把 `DashAnimation` 指向该 RootMotion 动画，并勾选 `bDashUseRootMotionAnimation`。该模式下 C++ 不再调用 `LaunchCharacter`，播放前会把角色朝向本次闪避方向，让动画 RootMotion 自己驱动胶囊位移。
+如果要使用 `A_Roll_IdleFwd` 这类自带位移的 Roll 动画，可以在 `BP_PlayerCharacter` 中把 `DashAnimation` 指向该 RootMotion 动画，并勾选 `bDashUseRootMotionAnimation`。当前原型阶段仍默认保留 `bDashApplyMovementImpulse = true`，即播放 RootMotion 动画的同时叠加一次短促代码位移，确保动画 Slot 或 RootMotion 配置出问题时，玩家也能从表现上看到闪避发生。
+
+闪避现在会在屏幕上显示运行时 Debug 信息，包括速度、MovementMode、Dash 状态、最近一次 Dash 输入时间、当前动画和位移模式。该功能由 `bShowMovementDebug` 控制，方便后续调试手感。
 
 后续相机、移动、战斗手感也遵循这个原则：底层规则写在 C++，调参入口暴露给蓝图或 DataAsset。
 
