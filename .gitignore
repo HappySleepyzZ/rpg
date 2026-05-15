@@ -4,6 +4,7 @@ DerivedDataCache/
 Intermediate/
 Saved/
 .vs/
+Build/
 
 # IDE generated files
 *.sln
@@ -21,3 +22,7 @@ Saved/
 # User-local Unreal files
 *.user
 *.sln.DotSettings.user
+.idea/
+*.DotSettings.user
+Thumbs.db
+Desktop.ini

@@ -2,9 +2,9 @@
 
 #include "Character/RPGPlayerCharacter.h"
 
+#include "Animation/AnimMontage.h"
+#include "Animation/AnimSequenceBase.h"
 #include "Camera/CameraComponent.h"
-#include "Animation/AnimSingleNodeInstance.h"
-#include "Animation/BlendSpace.h"
 #include "Components/CapsuleComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -12,12 +12,11 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
+#include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
 ARPGPlayerCharacter::ARPGPlayerCharacter()
 {
-	PrimaryActorTick.bCanEverTick = true;
-
 	GetCapsuleComponent()->InitCapsuleSize(42.0f, 96.0f);
 
 	bUseControllerRotationPitch = false;
@@ -29,14 +28,14 @@ ARPGPlayerCharacter::ARPGPlayerCharacter()
 	Movement->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
 	Movement->JumpZVelocity = 500.0f;
 	Movement->AirControl = 0.35f;
-	Movement->MaxWalkSpeed = 500.0f;
+	Movement->MaxWalkSpeed = WalkSpeed;
 	Movement->MinAnalogWalkSpeed = 20.0f;
 	Movement->BrakingDecelerationWalking = 2000.0f;
 	Movement->BrakingDecelerationFalling = 1500.0f;
 
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 400.0f;
+	CameraBoom->TargetArmLength = CameraDistance;
 	CameraBoom->bUsePawnControlRotation = true;
 
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
@@ -59,29 +58,15 @@ ARPGPlayerCharacter::ARPGPlayerCharacter()
 	static ConstructorHelpers::FObjectFinder<UInputAction> PrimaryActionAsset(TEXT("/Game/Input/Actions/IA_PrimaryAction.IA_PrimaryAction"));
 	PrimaryActionInput = PrimaryActionAsset.Object;
 
-	static ConstructorHelpers::FObjectFinder<UBlendSpace> LocomotionBlendSpaceAsset(TEXT("/Game/Characters/Mannequins/Anims/Unarmed/BS_Idle_Walk_Run.BS_Idle_Walk_Run"));
-	PrototypeLocomotionBlendSpace = LocomotionBlendSpaceAsset.Object;
-}
+	static ConstructorHelpers::FObjectFinder<UInputAction> SprintActionAsset(TEXT("/Game/Input/Actions/IA_Sprint.IA_Sprint"));
+	SprintAction = SprintActionAsset.Object;
 
-void ARPGPlayerCharacter::BeginPlay()
-{
-	Super::BeginPlay();
+	static ConstructorHelpers::FObjectFinder<UInputAction> ZoomActionAsset(TEXT("/Game/Input/Actions/IA_Zoom.IA_Zoom"));
+	ZoomAction = ZoomActionAsset.Object;
 
-	if (PrototypeLocomotionBlendSpace != nullptr)
-	{
-		// 先不用复杂官方 ABP，直接让 Mesh 进入单节点动画模式播放 BlendSpace。
-		// 这样原型阶段可以清楚验证移动动作，后续再替换成正式动画蓝图。
-		GetMesh()->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-		GetMesh()->SetAnimation(PrototypeLocomotionBlendSpace);
-		GetMesh()->Play(true);
-	}
-}
-
-void ARPGPlayerCharacter::Tick(float DeltaSeconds)
-{
-	Super::Tick(DeltaSeconds);
-
-	UpdatePrototypeLocomotionAnimation();
+	static ConstructorHelpers::FObjectFinder<UAnimSequenceBase> DashAnimationAsset(TEXT("/Game/Characters/Mannequins/Anims/Unarmed/Jump/MM_Dash.MM_Dash"));
+	DashAnimation = DashAnimationAsset.Object;
+	DashFallbackAnimation = DashAnimationAsset.Object;
 }
 
 void ARPGPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -122,6 +107,18 @@ void ARPGPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 	{
 		EnhancedInputComponent->BindAction(PrimaryActionInput, ETriggerEvent::Started, this, &ARPGPlayerCharacter::PrimaryAction);
 	}
+
+	if (SprintAction != nullptr)
+	{
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &ARPGPlayerCharacter::StartSprint);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &ARPGPlayerCharacter::StopSprint);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Canceled, this, &ARPGPlayerCharacter::StopSprint);
+	}
+
+	if (ZoomAction != nullptr)
+	{
+		EnhancedInputComponent->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ARPGPlayerCharacter::Zoom);
+	}
 }
 
 void ARPGPlayerCharacter::Move(const FInputActionValue& Value)
@@ -145,8 +142,130 @@ void ARPGPlayerCharacter::Move(const FInputActionValue& Value)
 void ARPGPlayerCharacter::Look(const FInputActionValue& Value)
 {
 	const FVector2D LookAxisVector = Value.Get<FVector2D>();
-	AddControllerYawInput(LookAxisVector.X);
-	AddControllerPitchInput(LookAxisVector.Y);
+	AddControllerYawInput(LookAxisVector.X * MouseLookSensitivity);
+	AddControllerPitchInput(LookAxisVector.Y * MouseLookSensitivity);
+}
+
+void ARPGPlayerCharacter::Zoom(const FInputActionValue& Value)
+{
+	const float ZoomValue = Value.Get<float>();
+	if (FMath::IsNearlyZero(ZoomValue))
+	{
+		return;
+	}
+
+	CameraDistance = FMath::Clamp(CameraDistance - ZoomValue * ZoomStep, MinCameraDistance, MaxCameraDistance);
+	CameraBoom->TargetArmLength = CameraDistance;
+}
+
+void ARPGPlayerCharacter::StartSprint()
+{
+	if (!bCanDash)
+	{
+		return;
+	}
+
+	bCanDash = false;
+
+	FVector DashDirection = GetLastMovementInputVector();
+	if (!bDashUseInputDirection || DashDirection.IsNearlyZero())
+	{
+		const FRotator ControlRotation = Controller != nullptr ? Controller->GetControlRotation() : GetActorRotation();
+		const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
+		DashDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+	}
+
+	DashDirection.Z = 0.0f;
+	DashDirection.Normalize();
+
+	UAnimSequenceBase* AnimationToPlay = DashAnimation;
+	const bool bUseRootMotionDash = bDashUseRootMotionAnimation && AnimationToPlay != nullptr;
+	if (!bUseRootMotionDash && IsLikelyRootMotionDashAnimation(AnimationToPlay))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("DashAnimation 指向 RootMotion 资源：%s。当前闪避位移由 LaunchCharacter 控制，改播 DashFallbackAnimation 以避免 Mesh 回弹。"), *GetNameSafe(AnimationToPlay));
+		AnimationToPlay = DashFallbackAnimation;
+	}
+
+	if (bUseRootMotionDash)
+	{
+		// RootMotion 动画通常沿角色前方位移；播放前把角色朝向本次闪避方向，避免侧向输入时动画和位移方向不一致。
+		SetActorRotation(DashDirection.Rotation());
+
+		if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+		{
+			// RootMotion 模式下不再叠加当前移动速度，让动画本身决定这次闪避的位移曲线。
+			Movement->StopMovementImmediately();
+		}
+	}
+
+	if (AnimationToPlay != nullptr)
+	{
+		// 原型阶段可以直接指定 AnimSequence；需要通知、无敌帧或位移曲线时，也可以把 DashAnimation 换成正式 AnimMontage。
+		if (UAnimMontage* DashMontageAsset = Cast<UAnimMontage>(AnimationToPlay))
+		{
+			PlayAnimMontage(DashMontageAsset, DashAnimationPlayRate);
+		}
+		else
+		{
+			UAnimMontage* DashMontage = UAnimMontage::CreateSlotAnimationAsDynamicMontage(
+				AnimationToPlay,
+				DashAnimationSlotName,
+				DashAnimationBlendIn,
+				DashAnimationBlendOut,
+				DashAnimationPlayRate);
+
+			PlayAnimMontage(DashMontage);
+		}
+	}
+
+	TWeakObjectPtr<ARPGPlayerCharacter> WeakThis(this);
+	if (!bUseRootMotionDash)
+	{
+		LaunchCharacter(DashDirection * DashStrength, true, false);
+
+		FTimerHandle DashStopTimerHandle;
+		GetWorldTimerManager().SetTimer(DashStopTimerHandle, [WeakThis]()
+		{
+			if (!WeakThis.IsValid())
+			{
+				return;
+			}
+
+			UCharacterMovementComponent* Movement = WeakThis->GetCharacterMovement();
+			if (Movement == nullptr)
+			{
+				return;
+			}
+
+			const FVector CurrentVelocity = Movement->Velocity;
+			Movement->Velocity = FVector(0.0f, 0.0f, CurrentVelocity.Z);
+		}, DashDuration, false);
+	}
+
+	FTimerHandle DashCooldownTimerHandle;
+	GetWorldTimerManager().SetTimer(DashCooldownTimerHandle, [WeakThis]()
+	{
+		if (WeakThis.IsValid())
+		{
+			WeakThis->bCanDash = true;
+		}
+	}, DashCooldown, false);
+}
+
+void ARPGPlayerCharacter::StopSprint()
+{
+	// 闪避是一次性动作，松开按键不再控制速度。
+}
+
+bool ARPGPlayerCharacter::IsLikelyRootMotionDashAnimation(const UAnimSequenceBase* Animation) const
+{
+	if (Animation == nullptr)
+	{
+		return false;
+	}
+
+	const FString AnimationPath = Animation->GetPathName().ToLower();
+	return AnimationPath.Contains(TEXT("/rootmotion/")) || AnimationPath.Contains(TEXT("/root_motion/"));
 }
 
 void ARPGPlayerCharacter::Interact()
@@ -157,22 +276,4 @@ void ARPGPlayerCharacter::Interact()
 void ARPGPlayerCharacter::PrimaryAction()
 {
 	// 原型 001 的基础行动入口。后续转发给 CombatComponent，而不是在角色里直接结算伤害。
-}
-
-void ARPGPlayerCharacter::UpdatePrototypeLocomotionAnimation()
-{
-	if (PrototypeLocomotionBlendSpace == nullptr)
-	{
-		return;
-	}
-
-	UAnimSingleNodeInstance* SingleNodeInstance = GetMesh()->GetSingleNodeInstance();
-	if (SingleNodeInstance == nullptr)
-	{
-		return;
-	}
-
-	const FVector Velocity = GetVelocity();
-	const float GroundSpeed = FVector(Velocity.X, Velocity.Y, 0.0f).Length();
-	SingleNodeInstance->SetBlendSpacePosition(FVector(GroundSpeed, 0.0f, 0.0f));
 }

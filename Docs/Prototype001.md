@@ -64,9 +64,13 @@ RPG 数值不要写死在角色逻辑里。
 [ ] 项目可以用 UE 5.7 正常打开并 Play
 [x] C++ 输入绑定已统一为 Enhanced Input
 [x] Enhanced Input 输入资产已创建并绑定
+[x] 鼠标视角输入已接入运行时 Enhanced Input 映射
+[x] Shift 闪避/突进输入已接入
+[x] 闪避/突进参数已暴露给 BP_PlayerCharacter 调试
+[x] 闪避/突进已接入免费 Dash 动画
 [x] 已导入 UE 免费占位资源
 [x] 玩家蓝图已创建并接入免费人形角色资源
-[x] 玩家移动动画已接入原型 BlendSpace 驱动
+[x] 玩家移动动画已接入官方 ABP
 [ ] 有白盒测试地图
 [x] 玩家角色可以第三人称移动
 [~] 探索镜头基本可用

@@ -51,7 +51,42 @@ HP、MP、ATK（攻击）、DEF（防御）、冷却、距离、奖励、任务�
 - `IA_Jump`
 - `IA_Interact`
 - `IA_PrimaryAction`
+- `IA_Sprint`
 - `IMC_Exploration`
+
+注意：UE Python 在当前 5.7 环境下没有稳定写入 `IMC_Exploration` 的默认映射数组。为了保证项目开箱可玩，`ARPGPlayerController` 会在运行时创建一份默认探索 MappingContext，包含 WASD、鼠标视角、跳跃、交互、基础行动和 Shift 闪避/突进。`IMC_Exploration` 后续仍可作为编辑器可视化和平台差异化扩展入口。
+
+## D010：手感参数暴露到蓝图
+
+需要频繁调试的手感参数不要写成 C++ 局部常量。
+
+当前 Dash 参数已通过 `UPROPERTY(EditAnywhere, BlueprintReadWrite)` 暴露到 `BP_PlayerCharacter`：
+
+- `DashStrength`
+- `DashDuration`
+- `DashCooldown`
+- `bDashUseInputDirection`
+- `bDashUseRootMotionAnimation`
+- `DashAnimation`
+- `DashFallbackAnimation`
+- `DashAnimationBlendIn`
+- `DashAnimationBlendOut`
+- `DashAnimationPlayRate`
+- `DashAnimationSlotName`
+
+`DashAnimation` 可以先填普通 `AnimSequence`，角色代码会动态转成 Montage 播放；后续如果需要动画通知、无敌帧或位移曲线，也可以直接替换成正式 `AnimMontage`。动态 Montage 的 Slot 名通过 `DashAnimationSlotName` 暴露，当前默认使用官方 `ABP_Unarmed` 可用的 `DefaultSlot`。
+
+默认闪避的实际位移由 `LaunchCharacter` 控制，所以自动选择脚本默认避开 `/RootMotion/` 动画。若蓝图里误填了 RootMotion 闪避动画，运行时会改播 `DashFallbackAnimation`，避免 Mesh 相对胶囊跑到屏幕边缘后在动画结束时回弹。
+
+如果要使用 `A_Roll_IdleFwd` 这类自带位移的 Roll 动画，可以在 `BP_PlayerCharacter` 中把 `DashAnimation` 指向该 RootMotion 动画，并勾选 `bDashUseRootMotionAnimation`。该模式下 C++ 不再调用 `LaunchCharacter`，播放前会把角色朝向本次闪避方向，让动画 RootMotion 自己驱动胶囊位移。
+
+后续相机、移动、战斗手感也遵循这个原则：底层规则写在 C++，调参入口暴露给蓝图或 DataAsset。
+
+## D011：会话记忆和文件删除规则
+
+每次开发会话结束前，都要更新本次会话自己的 session memory，记录项目路径、当前功能状态、关键决策、验证方式和后续注意事项。一个会话只维护自己的 memory 文件，不要修改其它会话的 memory 文件。
+
+不要在未获得用户明确同意的情况下删除任何文件。即使文件看起来像临时文件、自动生成文件、记忆文件或无关文件，也必须先说明原因并等待用户确认。
 
 ## D008：免费资源使用原则
 
@@ -61,8 +96,8 @@ HP、MP、ATK（攻击）、DEF（防御）、冷却、距离、奖励、任务�
 
 项目自有资源继续放入 `Characters`、`Combat`、`AI`、`UI` 等分类目录。等原型稳定后，再决定是否把外部资源整理、替换或重做。
 
-## D009：原型阶段使用最小动画驱动
+## D009：原型阶段复用官方 ABP
 
-官方 `ABP_Unarmed` 不是通用即插即用动画蓝图，直接挂到当前 `ARPGPlayerCharacter` 上不会可靠驱动移动动画。
+当前玩家蓝图使用 UE 免费资源中的 `ABP_Unarmed` 驱动移动动画。
 
-原型 001 先使用 C++ 根据角色水平速度驱动 `BS_Idle_Walk_Run`，让玩家可以看到 Idle/Walk/Run。这个方案只用于原型阶段，后续需要制作正式 `ABP_PlayerBase`，再把跳跃、攻击、受击等状态接入动画蓝图。
+不要在 C++ 里强制切换 Mesh 的 `AnimationMode`，避免覆盖蓝图里的动画蓝图设置。等原型需要更细的跳跃、攻击、受击、武器状态时，再制作项目自己的 `ABP_PlayerBase`。

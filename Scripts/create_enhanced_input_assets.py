@@ -42,6 +42,8 @@ def main():
 
     create_input_action("IA_Interact", bool_type)
     create_input_action("IA_PrimaryAction", bool_type)
+    create_input_action("IA_Sprint", bool_type)
+    create_input_action("IA_Zoom", None)
 
     # Rename the official default context to our project naming if possible.
     # This keeps a stable RPG-facing name while preserving UE-created action assets.
