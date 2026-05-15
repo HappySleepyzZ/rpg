@@ -18,6 +18,8 @@ Build/
 *.log
 *.tmp
 *.pdb
+__pycache__/
+*.pyc
 
 # User-local Unreal files
 *.user

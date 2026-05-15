@@ -23,7 +23,8 @@ def main():
     jump = load_asset("/Game/Input/Actions/IA_Jump")
     interact = load_asset("/Game/Input/Actions/IA_Interact")
     primary = load_asset("/Game/Input/Actions/IA_PrimaryAction")
-    sprint = load_asset("/Game/Input/Actions/IA_Sprint")
+    # 资产文件暂沿用 IA_Sprint；玩法语义是一次性 Dash，不是持续 Sprint。
+    dash = load_asset("/Game/Input/Actions/IA_Sprint")
 
     # 重复运行脚本时先清掉旧映射，避免 IMC 里出现重复按键。
     context.unmap_all_keys_from_action(move)
@@ -31,7 +32,7 @@ def main():
     context.unmap_all_keys_from_action(jump)
     context.unmap_all_keys_from_action(interact)
     context.unmap_all_keys_from_action(primary)
-    context.unmap_all_keys_from_action(sprint)
+    context.unmap_all_keys_from_action(dash)
 
     context.map_key(move, key("W"))
     context.map_key(move, key("S"))
@@ -44,7 +45,7 @@ def main():
     context.map_key(jump, key("Gamepad_FaceButton_Bottom"))
     context.map_key(interact, key("E"))
     context.map_key(primary, key("LeftMouseButton"))
-    context.map_key(sprint, key("LeftShift"))
+    context.map_key(dash, key("LeftShift"))
 
     unreal.EditorAssetLibrary.save_asset("/Game/Input/IMC_Exploration")
     log("updated /Game/Input/IMC_Exploration")

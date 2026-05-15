@@ -14,15 +14,8 @@ public class rpg260514 : ModuleRules
 
 		PublicIncludePaths.AddRange(new string[] {
 			"rpg260514",
-			"rpg260514/AI",
 			"rpg260514/Character",
-			"rpg260514/Combat",
-			"rpg260514/Core",
-			"rpg260514/Data",
-			"rpg260514/Interaction",
-			"rpg260514/Inventory",
-			"rpg260514/Quest",
-			"rpg260514/UI"
+			"rpg260514/Core"
 		});
 
 		// Uncomment if you are using Slate UI

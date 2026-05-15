@@ -42,6 +42,7 @@ def main():
 
     create_input_action("IA_Interact", bool_type)
     create_input_action("IA_PrimaryAction", bool_type)
+    # 资产文件暂沿用 IA_Sprint，避免本轮重命名二进制资产；C++ 和映射脚本按 Dash 语义使用它。
     create_input_action("IA_Sprint", bool_type)
     create_input_action("IA_Zoom", None)
 

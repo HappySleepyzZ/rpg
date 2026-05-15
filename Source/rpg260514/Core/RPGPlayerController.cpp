@@ -34,8 +34,9 @@ ARPGPlayerController::ARPGPlayerController()
 	static ConstructorHelpers::FObjectFinder<UInputAction> PrimaryActionAsset(TEXT("/Game/Input/Actions/IA_PrimaryAction.IA_PrimaryAction"));
 	PrimaryActionInput = PrimaryActionAsset.Object;
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> SprintActionAsset(TEXT("/Game/Input/Actions/IA_Sprint.IA_Sprint"));
-	SprintAction = SprintActionAsset.Object;
+	// 资产文件暂沿用 IA_Sprint，C++ 语义已统一为 Dash。后续重命名资产时同步调整输入脚本即可。
+	static ConstructorHelpers::FObjectFinder<UInputAction> DashActionAsset(TEXT("/Game/Input/Actions/IA_Sprint.IA_Sprint"));
+	DashAction = DashActionAsset.Object;
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> ZoomActionAsset(TEXT("/Game/Input/Actions/IA_Zoom.IA_Zoom"));
 	ZoomAction = ZoomActionAsset.Object;
@@ -60,22 +61,25 @@ void ARPGPlayerController::BeginPlay()
 	if (ExplorationMappingContext != nullptr)
 	{
 		InputSubsystem->AddMappingContext(ExplorationMappingContext, ExplorationMappingPriority);
+		return;
 	}
-	else
+
+	UE_LOG(LogTemp, Warning, TEXT("尚未设置 ExplorationMappingContext。请在玩家控制器蓝图中指定 IMC_Exploration。"));
+	if (!bUseRuntimeMappingFallback)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("尚未设置 ExplorationMappingContext。请在玩家控制器蓝图中指定 IMC_Exploration。"));
+		return;
 	}
 
 	if (UInputMappingContext* RuntimeExplorationMappingContext = CreateRuntimeExplorationMappingContext())
 	{
-		// 运行时默认映射保证新项目开箱可玩；资产 IMC 可在后续作为编辑器可视化和平台差异化扩展。
-		InputSubsystem->AddMappingContext(RuntimeExplorationMappingContext, ExplorationMappingPriority + 1);
+		// 资产 IMC 缺失时才创建运行时映射，避免编辑器资产和代码各写一份按键导致重复触发。
+		InputSubsystem->AddMappingContext(RuntimeExplorationMappingContext, ExplorationMappingPriority);
 	}
 }
 
 UInputMappingContext* ARPGPlayerController::CreateRuntimeExplorationMappingContext()
 {
-	if (MoveAction == nullptr || LookAction == nullptr || JumpAction == nullptr || InteractAction == nullptr || PrimaryActionInput == nullptr || SprintAction == nullptr || ZoomAction == nullptr)
+	if (MoveAction == nullptr || LookAction == nullptr || JumpAction == nullptr || InteractAction == nullptr || PrimaryActionInput == nullptr || DashAction == nullptr || ZoomAction == nullptr)
 	{
 		UE_LOG(LogTemp, Error, TEXT("创建运行时输入映射失败：存在未设置的 InputAction。"));
 		return nullptr;
@@ -129,7 +133,7 @@ UInputMappingContext* ARPGPlayerController::CreateRuntimeExplorationMappingConte
 	RuntimeContext->MapKey(JumpAction, EKeys::Gamepad_FaceButton_Bottom);
 	RuntimeContext->MapKey(InteractAction, EKeys::E);
 	RuntimeContext->MapKey(PrimaryActionInput, EKeys::LeftMouseButton);
-	RuntimeContext->MapKey(SprintAction, EKeys::LeftShift);
+	RuntimeContext->MapKey(DashAction, EKeys::LeftShift);
 	RuntimeContext->MapKey(ZoomAction, EKeys::MouseWheelAxis);
 
 	return RuntimeContext;

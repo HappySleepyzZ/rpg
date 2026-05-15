@@ -58,8 +58,9 @@ ARPGPlayerCharacter::ARPGPlayerCharacter()
 	static ConstructorHelpers::FObjectFinder<UInputAction> PrimaryActionAsset(TEXT("/Game/Input/Actions/IA_PrimaryAction.IA_PrimaryAction"));
 	PrimaryActionInput = PrimaryActionAsset.Object;
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> SprintActionAsset(TEXT("/Game/Input/Actions/IA_Sprint.IA_Sprint"));
-	SprintAction = SprintActionAsset.Object;
+	// 资产文件暂沿用 IA_Sprint，C++ 语义已统一为 Dash。后续在编辑器里重命名资产时只需要改这里和输入脚本。
+	static ConstructorHelpers::FObjectFinder<UInputAction> DashActionAsset(TEXT("/Game/Input/Actions/IA_Sprint.IA_Sprint"));
+	DashAction = DashActionAsset.Object;
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> ZoomActionAsset(TEXT("/Game/Input/Actions/IA_Zoom.IA_Zoom"));
 	ZoomAction = ZoomActionAsset.Object;
@@ -108,11 +109,11 @@ void ARPGPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(PrimaryActionInput, ETriggerEvent::Started, this, &ARPGPlayerCharacter::PrimaryAction);
 	}
 
-	if (SprintAction != nullptr)
+	if (DashAction != nullptr)
 	{
-		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &ARPGPlayerCharacter::StartSprint);
-		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &ARPGPlayerCharacter::StopSprint);
-		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Canceled, this, &ARPGPlayerCharacter::StopSprint);
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &ARPGPlayerCharacter::StartDash);
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Completed, this, &ARPGPlayerCharacter::StopDash);
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Canceled, this, &ARPGPlayerCharacter::StopDash);
 	}
 
 	if (ZoomAction != nullptr)
@@ -158,7 +159,7 @@ void ARPGPlayerCharacter::Zoom(const FInputActionValue& Value)
 	CameraBoom->TargetArmLength = CameraDistance;
 }
 
-void ARPGPlayerCharacter::StartSprint()
+void ARPGPlayerCharacter::StartDash()
 {
 	if (!bCanDash)
 	{
@@ -252,7 +253,7 @@ void ARPGPlayerCharacter::StartSprint()
 	}, DashCooldown, false);
 }
 
-void ARPGPlayerCharacter::StopSprint()
+void ARPGPlayerCharacter::StopDash()
 {
 	// 闪避是一次性动作，松开按键不再控制速度。
 }
