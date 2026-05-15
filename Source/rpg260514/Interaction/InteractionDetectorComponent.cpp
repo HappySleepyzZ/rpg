@@ -2,6 +2,7 @@
 
 #include "Interaction/InteractionDetectorComponent.h"
 
+#include "Components/PrimitiveComponent.h"
 #include "Engine/Engine.h"
 #include "GameFramework/Pawn.h"
 #include "Interaction/InteractableInterface.h"
@@ -30,7 +31,7 @@ void UInteractionDetectorComponent::BeginPlay()
 	GetOverlappingActors(OverlappingActors);
 	for (AActor* OverlappingActor : OverlappingActors)
 	{
-		if (IsValidInteractable(OverlappingActor))
+		if (IsInteractableActor(OverlappingActor))
 		{
 			CandidateActors.AddUnique(TWeakObjectPtr<AActor>(OverlappingActor));
 		}
@@ -72,12 +73,12 @@ AActor* UInteractionDetectorComponent::GetBestInteractable() const
 	for (const TWeakObjectPtr<AActor>& CandidatePtr : CandidateActors)
 	{
 		AActor* Candidate = CandidatePtr.Get();
-		if (!IsValidInteractable(Candidate))
+		if (!CanInteractWithActor(Candidate))
 		{
 			continue;
 		}
 
-		const float DistanceSquared = FVector::DistSquared(OwnerActor->GetActorLocation(), Candidate->GetActorLocation());
+		const float DistanceSquared = GetInteractionDistanceSquared(Candidate);
 		if (DistanceSquared < BestDistanceSquared)
 		{
 			BestDistanceSquared = DistanceSquared;
@@ -90,7 +91,7 @@ AActor* UInteractionDetectorComponent::GetBestInteractable() const
 
 void UInteractionDetectorComponent::HandleBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (IsValidInteractable(OtherActor))
+	if (IsInteractableActor(OtherActor))
 	{
 		CandidateActors.AddUnique(TWeakObjectPtr<AActor>(OtherActor));
 	}
@@ -104,22 +105,62 @@ void UInteractionDetectorComponent::HandleEndOverlap(UPrimitiveComponent* Overla
 	});
 }
 
-bool UInteractionDetectorComponent::IsValidInteractable(AActor* Candidate) const
+bool UInteractionDetectorComponent::IsInteractableActor(const AActor* Candidate) const
+{
+	return Candidate != nullptr && Candidate != GetOwner() && Candidate->Implements<UInteractableInterface>();
+}
+
+bool UInteractionDetectorComponent::CanInteractWithActor(AActor* Candidate) const
 {
 	AActor* OwnerActor = GetOwner();
-	if (Candidate == nullptr || Candidate == OwnerActor || !Candidate->Implements<UInteractableInterface>())
+	if (!IsInteractableActor(Candidate) || OwnerActor == nullptr)
 	{
 		return false;
 	}
-
 	return IInteractableInterface::Execute_CanInteract(Candidate, OwnerActor);
+}
+
+float UInteractionDetectorComponent::GetInteractionDistanceSquared(const AActor* Candidate) const
+{
+	const AActor* OwnerActor = GetOwner();
+	if (OwnerActor == nullptr || Candidate == nullptr)
+	{
+		return TNumericLimits<float>::Max();
+	}
+
+	const FVector OwnerLocation = OwnerActor->GetActorLocation();
+	FBox CandidateBounds(ForceInit);
+	TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
+	Candidate->GetComponents(PrimitiveComponents);
+
+	for (const UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+	{
+		if (PrimitiveComponent == nullptr || !PrimitiveComponent->IsRegistered() || !PrimitiveComponent->IsVisible())
+		{
+			continue;
+		}
+
+		if (PrimitiveComponent->GetCollisionEnabled() == ECollisionEnabled::QueryOnly)
+		{
+			continue;
+		}
+
+		CandidateBounds += PrimitiveComponent->Bounds.GetBox();
+	}
+
+	if (CandidateBounds.IsValid)
+	{
+		return FVector::DistSquared(OwnerLocation, CandidateBounds.GetClosestPointTo(OwnerLocation));
+	}
+
+	return FVector::DistSquared(OwnerLocation, Candidate->GetActorLocation());
 }
 
 void UInteractionDetectorComponent::RemoveInvalidCandidates()
 {
 	CandidateActors.RemoveAll([this](const TWeakObjectPtr<AActor>& CandidatePtr)
 	{
-		return !IsValidInteractable(CandidatePtr.Get());
+		return !IsInteractableActor(CandidatePtr.Get());
 	});
 }
 

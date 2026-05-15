@@ -56,12 +56,13 @@ HP、MP、ATK（攻击）、DEF（防御）、冷却、距离、奖励、任务�
 
 当前实现已收敛为：
 
-- 原型阶段默认启用 `bForceRuntimeExplorationMapping`，优先使用代码生成的完整探索 MappingContext。
-- 运行时映射包含 WASD、鼠标视角、手柄视角、滚轮缩放、跳跃、交互、基础行动和 Shift 闪避。
-- `IMC_Exploration` 暂时保留为编辑器可视化和后续平台差异化入口，但不作为当前原型的唯一输入事实来源。
-- 如果后续关闭 `bForceRuntimeExplorationMapping`，`IMC_Exploration` 必须至少包含：`IA_Move` 的 WASD / Gamepad Left2D，`IA_Look` 的 MouseX / MouseY / Gamepad Right2D，`IA_Zoom` 的 MouseWheelAxis，`IA_Jump` 的 Space / Gamepad Bottom，`IA_Interact` 的 E，`IA_PrimaryAction` 的 LeftMouseButton，`IA_Sprint` 的 LeftShift。
+- 默认优先使用 `IMC_Exploration`，使编辑器里的按键调整、平台差异化映射和重绑测试能够生效。
+- `bForceRuntimeExplorationMapping` 仅作为应急开关，默认关闭；打开后会强制使用代码生成的完整探索 MappingContext，并绕过 `IMC_Exploration`。
+- 运行时兜底映射包含 WASD、鼠标视角、手柄视角、滚轮缩放、跳跃、交互、基础行动和 Shift 闪避。
+- `IMC_Exploration` 必须至少包含：`IA_Move` 的 WASD / Gamepad Left2D，`IA_Look` 的 MouseX / MouseY / Gamepad Right2D，`IA_Zoom` 的 MouseWheelAxis，`IA_Jump` 的 Space / Gamepad Bottom，`IA_Interact` 的 E，`IA_PrimaryAction` 的 LeftMouseButton，`IA_Sprint` 的 LeftShift。
+- 完整性校验不只看 Key，也检查关键 modifier：W/S 需要 Swizzle，S/A 需要 Negate，MouseX/MouseY 需要与 runtime fallback 一致的 Scalar，MouseY 还需要 Swizzle。
 
-这样可以避免 `IMC_Exploration` 资产里的按键或 Modifier 配置不完整时，出现“按键没反应”或“鼠标不能转镜头”的问题。
+这样既保留资产作为默认事实来源，也能在 `IMC_Exploration` 缺失关键映射时通过运行时兜底避免“按键没反应”或“鼠标不能转镜头”的问题。
 
 ## D010：手感参数暴露到蓝图
 

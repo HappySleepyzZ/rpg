@@ -13,7 +13,36 @@ def load_asset(path):
 
 
 def key(name):
-    return unreal.Key(name)
+    result = unreal.Key()
+    result.set_editor_property("key_name", name)
+    return result
+
+
+def make_modifier(modifier_class, outer):
+    return unreal.new_object(modifier_class, outer=outer)
+
+
+def make_negate(outer):
+    return make_modifier(unreal.InputModifierNegate, outer)
+
+
+def make_swizzle(outer):
+    modifier = make_modifier(unreal.InputModifierSwizzleAxis, outer)
+    modifier.set_editor_property("order", unreal.InputAxisSwizzle.YXZ)
+    return modifier
+
+
+def make_scalar(outer, scalar):
+    modifier = make_modifier(unreal.InputModifierScalar, outer)
+    modifier.set_editor_property("scalar", scalar)
+    return modifier
+
+
+def add_mapping(context, action, key_name, modifiers=None):
+    mapping = context.map_key(action, key(key_name))
+    if modifiers:
+        mapping.set_editor_property("modifiers", modifiers)
+    return mapping
 
 
 def main():
@@ -23,11 +52,11 @@ def main():
     jump = load_asset("/Game/Input/Actions/IA_Jump")
     interact = load_asset("/Game/Input/Actions/IA_Interact")
     primary = load_asset("/Game/Input/Actions/IA_PrimaryAction")
-    # 资产文件暂沿用 IA_Sprint；玩法语义是一次性 Dash，不是持续 Sprint。
+    # The asset is still named IA_Sprint, while the gameplay meaning is Dash.
     dash = load_asset("/Game/Input/Actions/IA_Sprint")
     zoom = load_asset("/Game/Input/Actions/IA_Zoom")
 
-    # 重复运行脚本时先清掉旧映射，避免 IMC 里出现重复按键。
+    # Clear old mappings before rebuilding the IMC so rerunning this script is deterministic.
     context.unmap_all_keys_from_action(move)
     context.unmap_all_keys_from_action(look)
     context.unmap_all_keys_from_action(jump)
@@ -36,19 +65,24 @@ def main():
     context.unmap_all_keys_from_action(dash)
     context.unmap_all_keys_from_action(zoom)
 
-    context.map_key(move, key("W"))
-    context.map_key(move, key("S"))
-    context.map_key(move, key("A"))
-    context.map_key(move, key("D"))
-    context.map_key(move, key("Gamepad_Left2D"))
-    context.map_key(look, key("Mouse2D"))
-    context.map_key(look, key("Gamepad_Right2D"))
-    context.map_key(jump, key("SpaceBar"))
-    context.map_key(jump, key("Gamepad_FaceButton_Bottom"))
-    context.map_key(interact, key("E"))
-    context.map_key(primary, key("LeftMouseButton"))
-    context.map_key(dash, key("LeftShift"))
-    context.map_key(zoom, key("MouseWheelAxis"))
+    # Keep this in sync with ARPGPlayerController::CreateRuntimeExplorationMappingContext
+    # and ARPGPlayerController::HasRequiredExplorationMappings.
+    add_mapping(context, move, "W", [make_swizzle(context)])
+    add_mapping(context, move, "S", [make_negate(context), make_swizzle(context)])
+    add_mapping(context, move, "A", [make_negate(context)])
+    add_mapping(context, move, "D")
+    add_mapping(context, move, "Gamepad_Left2D")
+
+    add_mapping(context, look, "MouseX", [make_scalar(context, unreal.Vector(1.0, 0.0, 0.0))])
+    add_mapping(context, look, "MouseY", [make_swizzle(context), make_scalar(context, unreal.Vector(0.0, -1.0, 0.0))])
+    add_mapping(context, look, "Gamepad_Right2D")
+
+    add_mapping(context, jump, "SpaceBar")
+    add_mapping(context, jump, "Gamepad_FaceButton_Bottom")
+    add_mapping(context, interact, "E")
+    add_mapping(context, primary, "LeftMouseButton")
+    add_mapping(context, dash, "LeftShift")
+    add_mapping(context, zoom, "MouseWheelAxis")
 
     unreal.EditorAssetLibrary.save_asset("/Game/Input/IMC_Exploration")
     log("updated /Game/Input/IMC_Exploration")

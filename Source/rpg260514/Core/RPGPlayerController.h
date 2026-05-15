@@ -6,8 +6,9 @@
 #include "GameFramework/PlayerController.h"
 #include "RPGPlayerController.generated.h"
 
-class UInputMappingContext;
 class UInputAction;
+class UInputMappingContext;
+struct FEnhancedActionKeyMapping;
 
 UCLASS()
 class RPG260514_API ARPGPlayerController : public APlayerController
@@ -23,22 +24,27 @@ protected:
 private:
 	UInputMappingContext* CreateRuntimeExplorationMappingContext();
 	bool HasActionKeyMapping(const UInputMappingContext* MappingContext, const UInputAction* Action, FKey Key) const;
+	bool HasActionKeyMappingWithModifiers(const UInputMappingContext* MappingContext, const UInputAction* Action, FKey Key, bool bRequiresNegate, bool bRequiresSwizzle, const FVector* RequiredScalar) const;
+	bool MappingHasNegateModifier(const FEnhancedActionKeyMapping& Mapping) const;
+	bool MappingHasSwizzleModifier(const FEnhancedActionKeyMapping& Mapping) const;
+	bool MappingHasScalarModifier(const FEnhancedActionKeyMapping& Mapping, const FVector& RequiredScalar) const;
+	bool HasRequiredExplorationMappings(const UInputMappingContext* MappingContext) const;
 
-	// 探索输入上下文：移动、视角、跳跃、交互、基础行动。
-	// 后续进入战斗时可以叠加 CombatMappingContext，而不是改动角色输入代码。
+	// Exploration input context: movement, camera, jump, interact, primary action, dash and zoom.
+	// Later combat input should add a separate context instead of changing character input code.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputMappingContext> ExplorationMappingContext;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	int32 ExplorationMappingPriority = 0;
 
-	// 只在资产 IMC 缺失时启用运行时兜底映射，避免同一按键同时来自两个事实来源。
+	// Use runtime-generated mappings only when the asset IMC is missing or incomplete.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	bool bUseRuntimeMappingFallback = true;
 
-	// 原型阶段优先使用代码生成的完整探索映射，避免 IMC 资产里按键或 Modifier 不完整导致输入完全没反应。
+	// Emergency prototype override. Leave false by default so IMC_Exploration edits are honored.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-	bool bForceRuntimeExplorationMapping = true;
+	bool bForceRuntimeExplorationMapping = false;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> MoveAction;

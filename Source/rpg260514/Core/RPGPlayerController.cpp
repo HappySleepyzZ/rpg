@@ -6,16 +6,15 @@
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "InputAction.h"
+#include "InputCoreTypes.h"
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
-#include "InputCoreTypes.h"
 #include "UObject/ConstructorHelpers.h"
 
 ARPGPlayerController::ARPGPlayerController()
 {
 	bShowMouseCursor = false;
 
-	// 探索输入上下文默认指向项目资产；蓝图子类仍可覆盖为测试或平台专用上下文。
 	static ConstructorHelpers::FObjectFinder<UInputMappingContext> ExplorationMappingAsset(TEXT("/Game/Input/IMC_Exploration.IMC_Exploration"));
 	ExplorationMappingContext = ExplorationMappingAsset.Object;
 
@@ -34,7 +33,7 @@ ARPGPlayerController::ARPGPlayerController()
 	static ConstructorHelpers::FObjectFinder<UInputAction> PrimaryActionAsset(TEXT("/Game/Input/Actions/IA_PrimaryAction.IA_PrimaryAction"));
 	PrimaryActionInput = PrimaryActionAsset.Object;
 
-	// 资产文件暂沿用 IA_Sprint，C++ 语义已统一为 Dash。后续重命名资产时同步调整输入脚本即可。
+	// The asset is still named IA_Sprint, while C++ uses the gameplay term Dash.
 	static ConstructorHelpers::FObjectFinder<UInputAction> DashActionAsset(TEXT("/Game/Input/Actions/IA_Sprint.IA_Sprint"));
 	DashAction = DashActionAsset.Object;
 
@@ -61,7 +60,7 @@ void ARPGPlayerController::BeginPlay()
 	UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
 	if (InputSubsystem == nullptr)
 	{
-		UE_LOG(LogTemp, Error, TEXT("RPGPlayerController 无法获取 Enhanced Input LocalPlayerSubsystem。"));
+		UE_LOG(LogTemp, Error, TEXT("RPGPlayerController could not get Enhanced Input LocalPlayerSubsystem."));
 		return;
 	}
 
@@ -70,7 +69,7 @@ void ARPGPlayerController::BeginPlay()
 		if (UInputMappingContext* RuntimeExplorationMappingContext = CreateRuntimeExplorationMappingContext())
 		{
 			InputSubsystem->AddMappingContext(RuntimeExplorationMappingContext, ExplorationMappingPriority);
-			UE_LOG(LogTemp, Display, TEXT("RPGPlayerController 使用运行时探索输入映射，确保 WASD、鼠标视角、滚轮和 Shift 闪避可用。"));
+			UE_LOG(LogTemp, Warning, TEXT("RPGPlayerController is forcing runtime exploration input mappings; IMC_Exploration edits are bypassed."));
 		}
 
 		return;
@@ -80,19 +79,23 @@ void ARPGPlayerController::BeginPlay()
 	{
 		InputSubsystem->AddMappingContext(ExplorationMappingContext, ExplorationMappingPriority);
 
-		if (!HasActionKeyMapping(ExplorationMappingContext, DashAction, EKeys::LeftShift) || !HasActionKeyMapping(ExplorationMappingContext, LookAction, EKeys::MouseX) || !HasActionKeyMapping(ExplorationMappingContext, LookAction, EKeys::MouseY) || !HasActionKeyMapping(ExplorationMappingContext, ZoomAction, EKeys::MouseWheelAxis))
+		if (!HasRequiredExplorationMappings(ExplorationMappingContext))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("IMC_Exploration 缺少关键探索映射，已添加完整运行时探索输入兜底。"));
-			if (UInputMappingContext* RuntimeExplorationMappingContext = CreateRuntimeExplorationMappingContext())
+			UE_LOG(LogTemp, Warning, TEXT("IMC_Exploration is missing required prototype mappings."));
+			if (bUseRuntimeMappingFallback)
 			{
-				InputSubsystem->AddMappingContext(RuntimeExplorationMappingContext, ExplorationMappingPriority + 1);
+				if (UInputMappingContext* RuntimeExplorationMappingContext = CreateRuntimeExplorationMappingContext())
+				{
+					InputSubsystem->AddMappingContext(RuntimeExplorationMappingContext, ExplorationMappingPriority + 1);
+					UE_LOG(LogTemp, Warning, TEXT("Added runtime exploration input fallback above IMC_Exploration."));
+				}
 			}
 		}
 
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("尚未设置 ExplorationMappingContext。请在玩家控制器蓝图中指定 IMC_Exploration。"));
+	UE_LOG(LogTemp, Warning, TEXT("ExplorationMappingContext is not set on RPGPlayerController."));
 	if (!bUseRuntimeMappingFallback)
 	{
 		return;
@@ -100,8 +103,8 @@ void ARPGPlayerController::BeginPlay()
 
 	if (UInputMappingContext* RuntimeExplorationMappingContext = CreateRuntimeExplorationMappingContext())
 	{
-		// 资产 IMC 缺失时才创建运行时映射，避免编辑器资产和代码各写一份按键导致重复触发。
 		InputSubsystem->AddMappingContext(RuntimeExplorationMappingContext, ExplorationMappingPriority);
+		UE_LOG(LogTemp, Warning, TEXT("Using runtime exploration input fallback because ExplorationMappingContext is missing."));
 	}
 }
 
@@ -109,7 +112,7 @@ UInputMappingContext* ARPGPlayerController::CreateRuntimeExplorationMappingConte
 {
 	if (MoveAction == nullptr || LookAction == nullptr || JumpAction == nullptr || InteractAction == nullptr || PrimaryActionInput == nullptr || DashAction == nullptr || ZoomAction == nullptr)
 	{
-		UE_LOG(LogTemp, Error, TEXT("创建运行时输入映射失败：存在未设置的 InputAction。"));
+		UE_LOG(LogTemp, Error, TEXT("Failed to create runtime input mapping: one or more InputAction assets are missing."));
 		return nullptr;
 	}
 
@@ -135,7 +138,7 @@ UInputMappingContext* ARPGPlayerController::CreateRuntimeExplorationMappingConte
 		Mapping.Modifiers.Add(Scalar);
 	};
 
-	// 键盘移动：MoveAction 是 2D 轴。W/S 写入 Y，A/D 写入 X。
+	// MoveAction is Axis2D: W/S write Y and A/D write X.
 	AddSwizzleModifier(RuntimeContext->MapKey(MoveAction, EKeys::W));
 
 	FEnhancedActionKeyMapping& MoveBackward = RuntimeContext->MapKey(MoveAction, EKeys::S);
@@ -183,4 +186,102 @@ bool ARPGPlayerController::HasActionKeyMapping(const UInputMappingContext* Mappi
 	}
 
 	return false;
+}
+
+bool ARPGPlayerController::HasActionKeyMappingWithModifiers(const UInputMappingContext* MappingContext, const UInputAction* Action, FKey Key, bool bRequiresNegate, bool bRequiresSwizzle, const FVector* RequiredScalar) const
+{
+	if (MappingContext == nullptr || Action == nullptr)
+	{
+		return false;
+	}
+
+	for (const FEnhancedActionKeyMapping& Mapping : MappingContext->GetMappings())
+	{
+		if (Mapping.Action != Action || Mapping.Key != Key)
+		{
+			continue;
+		}
+
+		if (bRequiresNegate && !MappingHasNegateModifier(Mapping))
+		{
+			continue;
+		}
+
+		if (bRequiresSwizzle && !MappingHasSwizzleModifier(Mapping))
+		{
+			continue;
+		}
+
+		if (RequiredScalar != nullptr && !MappingHasScalarModifier(Mapping, *RequiredScalar))
+		{
+			continue;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+bool ARPGPlayerController::MappingHasNegateModifier(const FEnhancedActionKeyMapping& Mapping) const
+{
+	for (const TObjectPtr<UInputModifier>& Modifier : Mapping.Modifiers)
+	{
+		if (Modifier != nullptr && Modifier->IsA<UInputModifierNegate>())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool ARPGPlayerController::MappingHasSwizzleModifier(const FEnhancedActionKeyMapping& Mapping) const
+{
+	for (const TObjectPtr<UInputModifier>& Modifier : Mapping.Modifiers)
+	{
+		const UInputModifierSwizzleAxis* SwizzleModifier = Cast<UInputModifierSwizzleAxis>(Modifier);
+		if (SwizzleModifier != nullptr && SwizzleModifier->Order == EInputAxisSwizzle::YXZ)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool ARPGPlayerController::MappingHasScalarModifier(const FEnhancedActionKeyMapping& Mapping, const FVector& RequiredScalar) const
+{
+	for (const TObjectPtr<UInputModifier>& Modifier : Mapping.Modifiers)
+	{
+		const UInputModifierScalar* ScalarModifier = Cast<UInputModifierScalar>(Modifier);
+		if (ScalarModifier != nullptr && ScalarModifier->Scalar.Equals(RequiredScalar, KINDA_SMALL_NUMBER))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool ARPGPlayerController::HasRequiredExplorationMappings(const UInputMappingContext* MappingContext) const
+{
+	const FVector MouseLookYawScalar(1.0f, 0.0f, 0.0f);
+	const FVector MouseLookPitchScalar(0.0f, -1.0f, 0.0f);
+
+	return
+		HasActionKeyMappingWithModifiers(MappingContext, MoveAction, EKeys::W, false, true, nullptr) &&
+		HasActionKeyMappingWithModifiers(MappingContext, MoveAction, EKeys::S, true, true, nullptr) &&
+		HasActionKeyMappingWithModifiers(MappingContext, MoveAction, EKeys::A, true, false, nullptr) &&
+		HasActionKeyMapping(MappingContext, MoveAction, EKeys::D) &&
+		HasActionKeyMapping(MappingContext, MoveAction, EKeys::Gamepad_Left2D) &&
+		HasActionKeyMappingWithModifiers(MappingContext, LookAction, EKeys::MouseX, false, false, &MouseLookYawScalar) &&
+		HasActionKeyMappingWithModifiers(MappingContext, LookAction, EKeys::MouseY, false, true, &MouseLookPitchScalar) &&
+		HasActionKeyMapping(MappingContext, LookAction, EKeys::Gamepad_Right2D) &&
+		HasActionKeyMapping(MappingContext, JumpAction, EKeys::SpaceBar) &&
+		HasActionKeyMapping(MappingContext, JumpAction, EKeys::Gamepad_FaceButton_Bottom) &&
+		HasActionKeyMapping(MappingContext, InteractAction, EKeys::E) &&
+		HasActionKeyMapping(MappingContext, PrimaryActionInput, EKeys::LeftMouseButton) &&
+		HasActionKeyMapping(MappingContext, DashAction, EKeys::LeftShift) &&
+		HasActionKeyMapping(MappingContext, ZoomAction, EKeys::MouseWheelAxis);
 }

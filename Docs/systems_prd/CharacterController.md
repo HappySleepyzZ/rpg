@@ -76,8 +76,10 @@ IA_Sprint        LeftShift
 - `IA_Sprint` 文件名暂时沿用旧命名，但玩法语义已经是 Dash / Dodge。
 - 后续可以在编辑器里重命名为 `IA_Dash` 或 `IA_Dodge`，但需要同步修改 C++ 和输入脚本。
 - 角色代码只绑定 InputAction，不直接写死按键。
-- 原型阶段默认启用 `bForceRuntimeExplorationMapping`，运行时生成完整探索映射。
-- `IMC_Exploration` 暂时保留为编辑器可视化和后续平台差异化入口。
+- 默认优先使用 `IMC_Exploration`，保证编辑器里的按键调整、平台差异化映射和重绑测试能生效。
+- `bForceRuntimeExplorationMapping` 仅作为原型期应急开关，默认关闭；打开后会绕过 `IMC_Exploration`。
+- 当 `IMC_Exploration` 缺失关键映射且 `bUseRuntimeMappingFallback=true` 时，运行时会追加一套兜底探索映射。
+- `IMC_Exploration` 的 WASD 和 MouseX/MouseY 需要与 runtime fallback 使用同一套 modifier；`Scripts/update_exploration_input_mapping.py` 是当前同步脚本。
 - Play 开始时 `RPGPlayerController` 会进入 `GameOnly` 输入模式，并隐藏鼠标光标，避免鼠标被 UI/光标状态截走。
 
 ## 5. 移动设计

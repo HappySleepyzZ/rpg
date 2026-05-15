@@ -34,7 +34,7 @@
 
 - 靠近时提示 `Press E to test`。
 - 第一次按 `E` 后输出一次 Debug 交互消息。
-- 交互完成后 `bCanInteract=false`，下一帧会被玩家探测组件移出候选列表，不再显示提示，也不会再次响应 `E`。
+- 交互完成后 `bCanInteract=false`，下一帧不会再被选为当前可交互目标，不再显示提示，也不会再次响应 `E`。
 
 当前测试物放置在唯一默认地图 `/Game/Maps/Prototype001` 中。`Prototype001` 使用 UE OpenWorld/Untitled 模板作为底板，不再另建单独测试地图。测试物被放在玩家起点附近，使用较大的亮色立方体表现，方便进入地图后直接定位。
 
@@ -43,9 +43,12 @@
 `UInteractionDetectorComponent` 使用半径检测维护候选列表：
 
 - 默认半径：`220`。
-- 只收集实现 `UInteractableInterface` 且 `CanInteract` 返回 true 的 Actor。
-- 多个目标同时存在时选择离玩家最近的目标。
+- 候选列表只记录实现 `UInteractableInterface` 的 Actor。
+- `CanInteract` 只在选择当前目标时判断，因此对象状态可以在重叠期间从不可交互切换为可交互。
+- 多个目标同时存在时，按玩家到候选 Actor 的实体/可见组件包围盒最近点的距离排序；`QueryOnly` 触发范围不参与排序，避免多个候选都因进入触发球而距离变成 0。没有有效实体/可见包围盒时才回退到 Actor 原点。
 - 当前提示先用 `GEngine->AddOnScreenDebugMessage` 显示，后续 HUD/UMG 就绪后替换显示层即可。
+
+`CanInteract` 会在选目标和按键交互时被查询，必须保持为便宜、无副作用的纯状态判断。后续如果它需要读取任务、背包、剧情条件，应优先读取已有缓存状态，不在该函数里做昂贵搜索或触发业务流程。
 
 ### 输入
 
@@ -78,7 +81,7 @@
 
 - 提示显示：从屏幕 Debug 迁移到 HUD/UMG。
 - 目标排序：从最近目标升级为视线优先、角度优先或锁定目标。
-- 权限判断：`CanInteract` 可接入状态、阵营、任务条件或剧情条件。
+- 权限判断：`CanInteract` 可接入状态、阵营、任务条件或剧情条件，但必须保持纯查询。
 - 表现层：`Interact` 内可触发动画、音效、镜头和 UI，但不要把表现层反写进探测组件。
 
 ## 非目标

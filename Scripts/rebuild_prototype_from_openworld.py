@@ -1,7 +1,8 @@
+import os
+
 import unreal
 
 
-OPENWORLD_TEMPLATE_FILE = r"g:\Program Files\Epic Games\UE_5.7\Engine\Content\Maps\Templates\OpenWorld.umap"
 MAP_PATH = "/Game/Maps/Prototype001"
 BLUEPRINT_PATH = "/Game/Interaction/BP_TestOneShotInteractable"
 VISIBLE_MATERIAL_PATH = "/Game/Interaction/M_TestInteractable_Visible"
@@ -23,14 +24,20 @@ def load_optional_asset(path):
     return unreal.EditorAssetLibrary.load_asset(path) if unreal.EditorAssetLibrary.does_asset_exist(path) else None
 
 
+def get_openworld_template_file():
+    engine_dir = unreal.Paths.convert_relative_path_to_full(unreal.Paths.engine_dir())
+    return os.path.normpath(os.path.join(engine_dir, "Content", "Maps", "Templates", "OpenWorld.umap"))
+
+
 def create_map_from_template():
     # This is the same source UE uses when the editor shows a fresh "Untitled" Open World map.
     # The autosaved Untitled shell does not reliably carry its external actors into /Game.
-    world = unreal.EditorLoadingAndSavingUtils.new_map_from_template(OPENWORLD_TEMPLATE_FILE, False)
+    template_file = get_openworld_template_file()
+    world = unreal.EditorLoadingAndSavingUtils.new_map_from_template(template_file, False)
     if world is None:
-        raise RuntimeError(f"Failed to create map from template file: {OPENWORLD_TEMPLATE_FILE}")
+        raise RuntimeError(f"Failed to create map from template file: {template_file}")
 
-    log(f"created transient map from {OPENWORLD_TEMPLATE_FILE}")
+    log(f"created transient map from {template_file}")
     return world
 
 

@@ -26,7 +26,7 @@
 ## 当前地图实现
 
 - 唯一默认地图：`/Game/Maps/Prototype001`。
-- 地图来源：UE 5.7 引擎模板 `Engine/Content/Maps/Templates/OpenWorld.umap`，等价于编辑器中新建的 Untitled Open World 场景。
+- 地图来源：当前运行 UE 引擎目录下的 `Engine/Content/Maps/Templates/OpenWorld.umap`，等价于编辑器中新建的 Untitled Open World 场景。
 - 不再维护单独的交互测试地图，后续测试物都放进 `Prototype001`。
 - 一次性交互测试物已放在玩家起点附近，实例标签为 `Test One Shot Interactable`。
 - 该测试物是 World Partition 外部 Actor，保存于 `Content/__ExternalActors__/Maps/Prototype001/...`；脚本会把它设为非空间加载，避免测试时被分区加载隐藏。

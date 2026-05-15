@@ -31,7 +31,9 @@ protected:
 	void HandleEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 private:
-	bool IsValidInteractable(AActor* Candidate) const;
+	bool IsInteractableActor(const AActor* Candidate) const;
+	bool CanInteractWithActor(AActor* Candidate) const;
+	float GetInteractionDistanceSquared(const AActor* Candidate) const;
 	void RemoveInvalidCandidates();
 	void ShowCurrentPrompt() const;
 
